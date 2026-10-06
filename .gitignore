@@ -1,0 +1,24 @@
+.build/
+.swiftpm/
+dist/
+.DS_Store
+
+# Local host lists, history, exports, and diagnostic output
+state.json
+history.json
+hosts.txt
+*.csv
+*.tsv
+*.log
+Screenshot*.png
+__MACOSX/
+
+# Credentials and local editor/agent configuration
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+.codex/
+.agents/
