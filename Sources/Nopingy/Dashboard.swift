@@ -83,7 +83,7 @@ struct RootView: View {
                 }
             }
             Spacer(minLength: 10)
-            sideButton("Settings", icon: "slider.horizontal.3", selected: false) { store.showSettings = true }
+            sideButton("Settings", icon: "slider.horizontal.3", selected: false) { store.openSettings() }
             HStack(spacing: 6) {
                 Circle().fill(store.runningCount > 0 ? Theme.accent : .secondary).frame(width: 5, height: 5)
                 Text(store.demo ? "DEMO · SAMPLE DATA" : "\(store.runningCount) ACTIVE MONITORS").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
@@ -145,6 +145,9 @@ struct BoardView: View {
                 countBadge("Down", count: store.downCount, status: .down)
                 countBadge("Error", count: store.errorCount, status: .error)
                 Spacer()
+                Button { store.openSettings(tab: "notifications") } label: {
+                    Label("Notifications", systemImage: store.settings.notifications ? "bell.badge" : "bell")
+                }.disabled(store.demo).help(store.settings.notifications ? "Status notifications are on" : "Enable status notifications")
                 Button { store.startAll() } label: { Label("Start all", systemImage: "play.fill") }.disabled(store.demo || store.hosts.isEmpty || store.runningCount == store.hosts.count)
                 Button { store.stopAll() } label: { Label("Stop all", systemImage: "pause.fill") }.disabled(store.runningCount == 0)
                 Menu {

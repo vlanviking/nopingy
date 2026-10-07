@@ -70,10 +70,11 @@ struct SettingsView: View {
     @EnvironmentObject var store: MonitorStore
     @Environment(\.dismiss) private var dismiss
     @ViewState private var settings = NopingyCore.Settings()
+    @ViewState private var tab = "probes"
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Settings").font(.system(size: 22, weight: .semibold))
-            TabView {
+            TabView(selection: $tab) {
                 Form {
                     Section("Probe timing") {
                         numeric("Interval (seconds)", value: $settings.interval)
@@ -86,7 +87,7 @@ struct SettingsView: View {
                         Text("TTL: 1–255. Payload: 0–65,000 bytes. TCP and DNS checks use the timeout only.").font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                     Section("On launch") { Toggle("Start monitoring saved hosts", isOn: $settings.launchMonitoring) }
-                }.formStyle(.grouped).tabItem { Text("Probes") }
+                }.formStyle(.grouped).tabItem { Text("Probes") }.tag("probes")
                 Form {
                     Section("Display") {
                         Toggle("Keep monitor window on top", isOn: $settings.alwaysOnTop)
@@ -95,12 +96,20 @@ struct SettingsView: View {
                         ColorPicker("Down", selection: colorBinding(\.downColor), supportsOpacity: false)
                         ColorPicker("Error", selection: colorBinding(\.errorColor), supportsOpacity: false)
                     }
-                    Section("State changes") {
-                        Toggle("Show macOS notifications", isOn: $settings.notifications)
+                }.formStyle(.grouped).tabItem { Text("Display") }.tag("display")
+                Form {
+                    Section("Status notifications") {
+                        Toggle("Notify when a host changes status", isOn: $settings.notifications).disabled(store.demo)
                         Toggle("Play a sound", isOn: $settings.sound)
-                        Text("Alerts fire when a known state changes. The first check does not trigger an alert.").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text("Alerts show the host, target, and change between Up, Down, and Error. The first result, repeated results, and pausing do not trigger alerts.").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Button(store.notificationRequestInProgress ? "Requesting permission…" : "Send test notification") { store.sendTestNotification() }
+                            .disabled(store.demo || !settings.notifications || store.notificationRequestInProgress)
                     }
-                }.formStyle(.grouped).tabItem { Text("Display & alerts") }
+                    Section("Mac permission") {
+                        Text("Click Apply, then allow notifications when macOS asks. If blocked, enable nopingy in System Settings → Notifications. Focus settings may silence banners.").font(.system(size: 11)).foregroundStyle(.secondary)
+                        if store.demo { Text("Notifications are unavailable in demo mode. Switch to live monitoring first.").font(.system(size: 11)).foregroundStyle(.secondary) }
+                    }
+                }.formStyle(.grouped).tabItem { Text("Notifications") }.tag("notifications")
                 Form {
                     Section("CSV files") {
                         Picker("Record", selection: $settings.logMode) {
@@ -113,11 +122,11 @@ struct SettingsView: View {
                         Text("One CSV file per day. Status history is also saved automatically and can be exported from the history screen.").font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                     Section("About nopingy") {
-                        Text("Version 1.0.1 · Native macOS network monitor").font(.system(size: 12))
+                        Text("Version 1.0.2 · Native macOS network monitor").font(.system(size: 12))
                         Link("Inspired by Ryan Smith’s vmPing (MIT)", destination: URL(string: "https://github.com/r-smith/vmPing")!).font(.system(size: 11))
                         Text("Hosts and settings are stored in Application Support/nopingy. The app keeps monitoring when its window closes; quit from the menu to stop.").font(.system(size: 11)).foregroundStyle(.secondary)
                     }
-                }.formStyle(.grouped).tabItem { Text("Logs & about") }
+                }.formStyle(.grouped).tabItem { Text("Logs & about") }.tag("logs")
             }.frame(height: 365)
             HStack {
                 Button("Reset settings") { settings = Settings() }
@@ -126,7 +135,7 @@ struct SettingsView: View {
                 Button("Apply") { store.applySettings(settings); dismiss() }.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).tint(Theme.accent).foregroundStyle(.black)
                     .disabled(settings.logMode != "off" && settings.logDirectory.isEmpty)
             }
-        }.padding(24).frame(width: 560).background(Theme.panel).preferredColorScheme(.dark).onAppear { settings = store.settings }
+        }.padding(24).frame(width: 560).background(Theme.panel).preferredColorScheme(.dark).onAppear { settings = store.settings; tab = store.settingsTab }
     }
     private func numeric(_ label: String, value: Binding<Double>) -> some View {
         TextField(label, value: value, format: .number.precision(.fractionLength(0...2)))

@@ -45,6 +45,23 @@ its own Start/Pause button and a menu for editing, exporting replies, or removin
 it. Closing the window keeps monitoring running in the menu bar. Choose
 **Quit nopingy** to stop the app.
 
+## Status notifications
+
+Click **Notifications** on the monitor screen, turn on **Notify when a host
+changes status**, and click **Apply**. Allow notifications when macOS asks.
+You can also find this option in **Settings → Notifications**.
+
+You'll get a Mac notification when a host changes between **Up**, **Down**, and
+**Error**, including when nopingy is in front or its window is closed. Each alert
+shows the host, target, previous status, and new status. The first result,
+repeated results, and pausing don't create alerts.
+
+Use **Send test notification** to check that banners appear. If permission was
+denied, enable nopingy in **System Settings → Notifications**, then turn on the
+app's status notifications again. macOS Focus settings may silence banners.
+**Play a sound** is optional. Notifications are off until you enable them, and
+demo mode never sends alerts.
+
 ## What it can do
 
 - Monitor up to **128 hosts**, including IPv4, IPv6, and TCP ports.
@@ -126,7 +143,8 @@ dist/nopingy.app/Contents/MacOS/nopingy --check-interface
 
 The core checks cover parsing, statistics, CSV output, saved configuration,
 timeouts, and cancellation. The interface checks cover reply-log scrolling and
-the transition from demo to live monitoring. Full Xcode's XCTest framework is
+the transition from demo to live monitoring, status-change alerts, permission
+handling, and notification delivery failures. Full Xcode's XCTest framework is
 not required.
 
 The optional network smoke test checks local IPv4/IPv6 and TCP services, resolves

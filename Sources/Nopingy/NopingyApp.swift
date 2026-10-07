@@ -24,7 +24,7 @@ struct NopingyApplication: App {
                     Button("Export hosts…") { store.exportHosts() }.keyboardShortcut("e", modifiers: [.command, .shift])
                     Button("Save host group…") { store.showSaveFavorite = true }.keyboardShortcut("s").disabled(store.demo || store.hosts.isEmpty)
                 }
-                CommandGroup(replacing: .appSettings) { Button("Settings…") { store.showSettings = true }.keyboardShortcut(",") }
+                CommandGroup(replacing: .appSettings) { Button("Settings…") { store.openSettings() }.keyboardShortcut(",") }
                 CommandMenu("Monitor") {
                     Button("Start all") { store.startAll() }.keyboardShortcut("r").disabled(store.demo)
                     Button("Stop all") { store.stopAll() }.keyboardShortcut(".")
@@ -55,6 +55,7 @@ struct MenuBarView: View {
         Button("Open nopingy") { showWindow() }
         Button("Start all") { store.startAll() }.disabled(store.demo)
         Button("Stop all") { store.stopAll() }
+        Button("Notification settings…") { showWindow(); store.openSettings(tab: "notifications") }
         Divider()
         Button("Quit nopingy") { NSApp.terminate(nil) }.keyboardShortcut("q")
     }

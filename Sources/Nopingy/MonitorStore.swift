@@ -32,6 +32,8 @@ import NopingyCore
     @Published var showAdd = false
     @Published var editing: HostMonitor?
     @Published var showSettings = false
+    @Published var settingsTab = "probes"
+    @Published private(set) var notificationRequestInProgress = false
     @Published var showSaveFavorite = false
     @Published var showTools = false
     @Published var toolHost = ""
@@ -39,9 +41,13 @@ import NopingyCore
     private var saveTask: Task<Void, Never>?
     private var persistenceEnabled = true
     private var logErrorReported = false
+    private var notificationErrorReported = false
+    private let notificationSender: StatusNotificationSending
     @Published private(set) var demo: Bool
 
-    init(demo demoOverride: Bool? = nil, stateURL: URL? = nil, arguments argumentOverride: [String]? = nil) {
+    init(demo demoOverride: Bool? = nil, stateURL: URL? = nil, arguments argumentOverride: [String]? = nil,
+         notificationSender: StatusNotificationSending? = nil) {
+        self.notificationSender = notificationSender ?? MacStatusNotifications()
         demo = demoOverride ?? CommandLine.arguments.contains("--demo")
         let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("nopingy")
         file = StateFile(url: stateURL ?? directory.appendingPathComponent("state.json"))
@@ -85,6 +91,7 @@ import NopingyCore
         revision += 1
     }
     func openAddHosts() { enterLiveMode(); showAdd = true }
+    func openSettings(tab: String = "probes") { settingsTab = tab; showSettings = true }
 
     var runningCount: Int { hosts.filter(\.running).count }
     var upCount: Int { hosts.filter { $0.status == .up }.count }
@@ -160,7 +167,7 @@ import NopingyCore
         hosts.swapAt(index, index + offset); save()
     }
 
-    private func receive(_ result: ProbeResult, host: HostMonitor) {
+    func receive(_ result: ProbeResult, host: HostMonitor) {
         let previous = host.lastStatus
         host.status = result.status
         host.samples.append(Sample(result: result))
@@ -169,7 +176,9 @@ import NopingyCore
         if previous != result.status {
             host.changed = Date()
             record(host, event: result.status.rawValue, detail: result.detail)
-            if [.up, .down, .error].contains(previous) { alert(host, result: result) }
+            if [.up, .down, .error].contains(previous) && [.up, .down, .error].contains(result.status) {
+                alert(host, previous: previous, result: result)
+            }
         }
         host.lastStatus = result.status
         if settings.logMode == "all" { writeLog(host, event: "sample", detail: result.detail) }
@@ -203,24 +212,53 @@ import NopingyCore
         }
     }
 
-    private func alert(_ host: HostMonitor, result: ProbeResult) {
+    private func alert(_ host: HostMonitor, previous: ProbeStatus, result: ProbeResult) {
         if settings.sound && !demo { NSSound(named: result.status == .up ? "Glass" : "Basso")?.play() }
-        guard settings.notifications, !demo, Bundle.main.bundleIdentifier != nil else { return }
+        guard settings.notifications, !demo else { return }
         let content = UNMutableNotificationContent()
         content.title = "\(host.definition.name) is \(result.status.rawValue)"
-        content.body = "\(host.definition.target.address) · \(result.detail.prefix(160))"
+        content.body = "\(host.definition.target.address) · \(previous.label) → \(result.status.label)\n\(result.detail.prefix(160))"
+        content.threadIdentifier = host.id.uuidString
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request) { _ in }
+        sendNotification(request)
     }
 
-    func requestNotifications() {
+    private func sendNotification(_ request: UNNotificationRequest) {
+        notificationSender.send(request) { [weak self] failure in
+            guard let self else { return }
+            if let failure {
+                if !self.notificationErrorReported {
+                    self.error = "Notification could not be delivered: \(failure.localizedDescription)"
+                    self.notificationErrorReported = true
+                }
+            } else { self.notificationErrorReported = false }
+        }
+    }
+
+    func requestNotifications(completion: (@MainActor (Bool) -> Void)? = nil) {
         guard !demo else { return }
-        guard Bundle.main.bundleIdentifier != nil else { error = "Build and open the .app bundle to enable macOS notifications."; return }
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, failure in
-            Task { @MainActor in
-                if let failure { self.error = failure.localizedDescription }
-                else if !granted { self.error = "Notifications are disabled. Enable nopingy in System Settings → Notifications." }
+        guard !notificationRequestInProgress else { return }
+        notificationRequestInProgress = true
+        notificationSender.requestAuthorization { [weak self] granted, failure in
+            guard let self else { return }
+            self.notificationRequestInProgress = false
+            if let failure { self.error = "Notifications could not be enabled: \(failure.localizedDescription)" }
+            else if !granted { self.error = "Notifications are disabled. Enable nopingy in System Settings → Notifications, then turn on status notifications again." }
+            if !granted || failure != nil {
+                self.settings.notifications = false
+                self.save()
             }
+            completion?(granted && failure == nil)
+        }
+    }
+
+    func sendTestNotification() {
+        requestNotifications { [weak self] granted in
+            guard let self, granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "nopingy notifications are ready"
+            content.body = "You'll be notified when a monitored host changes between Up, Down, and Error."
+            self.sendNotification(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
         }
     }
 
